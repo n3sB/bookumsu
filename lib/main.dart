@@ -65,7 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 color: Colors.orange,
               ),
               accountName: Text(
-                'ENSET LIB',
+                'AKDENIZ LIB',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
@@ -83,7 +83,7 @@ class _MyHomePageState extends State<MyHomePage> {
               leading:
                   CircleAvatar(backgroundImage: AssetImage('assets/photo.png')),
               title: Text(
-                'ZAID EL MOUADDIBE',
+                'ONUR ALP AKIN',
                 style: TextStyle(fontSize: 15),
               ),
               subtitle: Text(

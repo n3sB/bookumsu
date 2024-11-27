@@ -119,7 +119,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     onSubmitted: (text) {
                       setState(() {
                         widget.book.comments.add(
-                            Comment(user: 'Zaid', text: text, liked: true));
+                            Comment(user: 'Onur', text: text, liked: true));
                       });
                     },
                   ),

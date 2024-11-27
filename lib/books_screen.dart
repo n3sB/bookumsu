@@ -76,7 +76,9 @@ class _BooksScreenState extends State<BooksScreen> {
       _books.add(Book(
         title: title,
         author: author,
-        image: image,
+        image: image.isNotEmpty
+            ? image
+            : 'https://via.placeholder.com/150', // Varsayılan görsel
         description: description,
       ));
       _filterBooks();
@@ -201,59 +203,77 @@ class _BooksScreenState extends State<BooksScreen> {
             final book = _filteredBooks[index];
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-              child: ListTile(
-                leading: Image.network(book.image),
-                title: Text(book.title),
-                subtitle: Column(
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Author: ${book.author}'),
-                    RatingBar.builder(
-                      initialRating: book.rating,
-                      minRating: 1,
-                      direction: Axis.horizontal,
-                      allowHalfRating: true,
-                      itemCount: 5,
-                      itemSize: 20.0,
-                      itemBuilder: (context, _) => const Icon(
-                        Icons.star,
-                        color: Colors.amber,
+                    // Kitap kapağı
+                    Container(
+                      width: 80,
+                      height: 100,
+                      margin: const EdgeInsets.only(right: 10),
+                      child: Image.network(
+                        book.image,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Image.network(
+                            'https://via.placeholder.com/150', // Varsayılan görsel
+                            fit: BoxFit.cover,
+                          );
+                        },
                       ),
-                      onRatingUpdate: (rating) {
-                        setState(() {
-                          book.rating = rating;
-                        });
+                    ),
+                    // Kitap detayları (Başlık ve yazar)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            book.title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Author: ${book.author}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Puanlama yıldızları
+                          RatingBar.builder(
+                            initialRating: book.rating,
+                            minRating: 1,
+                            direction: Axis.horizontal,
+                            allowHalfRating: true,
+                            itemCount: 5,
+                            itemSize: 20.0,
+                            itemBuilder: (context, _) => const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                            ),
+                            onRatingUpdate: (rating) {
+                              setState(() {
+                                book.rating = rating;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Silme butonu
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        _removeBook(index);
                       },
                     ),
                   ],
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          BookDetailScreen(book: book),
-                      transitionsBuilder:
-                          (context, animation, secondaryAnimation, child) {
-                        const begin = Offset(1.0, 0.0);
-                        const end = Offset.zero;
-                        const curve = Curves.ease;
-                        var tween = Tween(begin: begin, end: end)
-                            .chain(CurveTween(curve: curve));
-                        var offsetAnimation = animation.drive(tween);
-                        return SlideTransition(
-                          position: offsetAnimation,
-                          child: child,
-                        );
-                      },
-                    ),
-                  );
-                },
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () {
-                    _removeBook(index);
-                  },
                 ),
               ),
             );
