@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Book {
   final String title;
@@ -7,6 +8,7 @@ class Book {
   final String image;
   final String description;
   double rating;
+  final String id;
   List<Comment> comments;
 
   Book({
@@ -15,8 +17,37 @@ class Book {
     required this.image,
     required this.description,
     this.rating = 0.0,
+    required this.id,
     this.comments = const [],
   });
+
+  factory Book.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    Map<String, dynamic> data = doc.data() ?? {};
+
+    return Book(
+      title: data['title'] ?? 'Untitled',
+      author: data['author'] ?? 'Unknown',
+      image: data['image'] ?? 'https://via.placeholder.com/150',
+      description: data['description'] ?? 'No description provided.',
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      id: doc.id,
+      comments: (data['comments'] as List<dynamic>?)
+              ?.map((commentData) => Comment.fromFirestore(commentData))
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'author': author,
+      'image': image,
+      'description': description,
+      'rating': rating,
+      'comments': comments.map((comment) => comment.toFirestore()).toList(),
+    };
+  }
 }
 
 class Comment {
@@ -25,6 +56,22 @@ class Comment {
   final bool liked;
 
   Comment({required this.user, required this.text, this.liked = false});
+
+  factory Comment.fromFirestore(Map<String, dynamic> data) {
+    return Comment(
+      user: data['user'] ?? '',
+      text: data['text'] ?? '',
+      liked: data['liked'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'user': user,
+      'text': text,
+      'liked': liked,
+    };
+  }
 }
 
 class BooksScreen extends StatefulWidget {
@@ -36,29 +83,29 @@ class BooksScreen extends StatefulWidget {
 }
 
 class _BooksScreenState extends State<BooksScreen> {
-  final List<Book> _books = [
-    Book(
-      title: 'Book 1',
-      author: 'Author 1',
-      image: 'https://picsum.photos/150?random=1',
-      description: 'Description of Book 1',
-    ),
-    Book(
-      title: 'Book 2',
-      author: 'Author 2',
-      image: 'https://picsum.photos/150?random=2',
-      description: 'Description of Book 2',
-    ),
-  ];
-
+  List<Book> _books = [];
   List<Book> _filteredBooks = [];
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _filteredBooks = _books;
+    _fetchBooks();
     _searchController.addListener(_filterBooks);
+  }
+
+  Future<void> _fetchBooks() async {
+    try {
+      final QuerySnapshot<Map<String, dynamic>> snapshot =
+          await FirebaseFirestore.instance.collection('books').get();
+
+      setState(() {
+        _books = snapshot.docs.map((doc) => Book.fromFirestore(doc)).toList();
+        _filteredBooks = List.from(_books);
+      });
+    } catch (e) {
+      print('Error fetching books: $e');
+    }
   }
 
   void _filterBooks() {
@@ -71,25 +118,45 @@ class _BooksScreenState extends State<BooksScreen> {
     });
   }
 
-  void _addBook(String title, String author, String image, String description) {
-    setState(() {
-      _books.add(Book(
-        title: title,
-        author: author,
-        image: image.isNotEmpty
-            ? image
-            : 'https://via.placeholder.com/150', // Varsayılan görsel
-        description: description,
-      ));
-      _filterBooks();
-    });
+  void _addBook(
+      String title, String author, String image, String description) async {
+    try {
+      final DocumentReference<Map<String, dynamic>> docRef =
+          await FirebaseFirestore.instance.collection('books').add({
+        'title': title,
+        'author': author,
+        'image': image.isNotEmpty ? image : 'https://via.placeholder.com/150',
+        'description': description,
+        'rating': 0.0,
+        'comments': [],
+      });
+
+      setState(() {
+        _books.add(Book(
+          id: docRef.id,
+          title: title,
+          author: author,
+          image: image.isNotEmpty ? image : 'https://via.placeholder.com/150',
+          description: description,
+        ));
+        _filterBooks();
+      });
+    } catch (e) {
+      print("Failed to add book: $e");
+    }
   }
 
-  void _removeBook(int index) {
-    setState(() {
-      _books.removeAt(index);
-      _filterBooks();
-    });
+  void _removeBook(String bookId, int index) async {
+    try {
+      await FirebaseFirestore.instance.collection('books').doc(bookId).delete();
+
+      setState(() {
+        _books.removeWhere((book) => book.id == bookId);
+        _filteredBooks.removeAt(index);
+      });
+    } catch (e) {
+      print('Failed to remove book: $e');
+    }
   }
 
   void _showAddBookDialog() {
@@ -197,88 +264,99 @@ class _BooksScreenState extends State<BooksScreen> {
             ),
           ),
         ),
-        body: ListView.builder(
-          itemCount: _filteredBooks.length,
-          itemBuilder: (context, index) {
-            final book = _filteredBooks[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Kitap kapağı
-                    Container(
-                      width: 80,
-                      height: 100,
-                      margin: const EdgeInsets.only(right: 10),
-                      child: Image.network(
-                        book.image,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Image.network(
-                            'https://via.placeholder.com/150', // Varsayılan görsel
-                            fit: BoxFit.cover,
-                          );
-                        },
-                      ),
-                    ),
-                    // Kitap detayları (Başlık ve yazar)
-                    Expanded(
-                      child: Column(
+        body: _filteredBooks.isEmpty
+            ? const Center(
+                child: Text(
+                  'No Books in your library',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
+              )
+            : ListView.builder(
+                itemCount: _filteredBooks.length,
+                itemBuilder: (context, index) {
+                  final book = _filteredBooks[index];
+                  return Card(
+                    margin:
+                        const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            book.title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          Container(
+                            width: 80,
+                            height: 100,
+                            margin: const EdgeInsets.only(right: 10),
+                            child: Image.network(
+                              book.image,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Image.network(
+                                  'https://via.placeholder.com/150',
+                                  fit: BoxFit.cover,
+                                );
+                              },
                             ),
                           ),
-                          const SizedBox(height: 5),
-                          Text(
-                            'Author: ${book.author}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  book.title,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  'Author: ${book.author}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                RatingBar.builder(
+                                  initialRating: book.rating,
+                                  minRating: 1,
+                                  direction: Axis.horizontal,
+                                  allowHalfRating: true,
+                                  itemCount: 5,
+                                  itemSize: 20.0,
+                                  itemBuilder: (context, _) => const Icon(
+                                    Icons.star,
+                                    color: Colors.amber,
+                                  ),
+                                  onRatingUpdate: (rating) async {
+                                    setState(() {
+                                      book.rating = rating;
+                                    });
+
+                                    await FirebaseFirestore.instance
+                                        .collection('books')
+                                        .doc(book.id)
+                                        .update({'rating': rating});
+                                  },
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          // Puanlama yıldızları
-                          RatingBar.builder(
-                            initialRating: book.rating,
-                            minRating: 1,
-                            direction: Axis.horizontal,
-                            allowHalfRating: true,
-                            itemCount: 5,
-                            itemSize: 20.0,
-                            itemBuilder: (context, _) => const Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                            ),
-                            onRatingUpdate: (rating) {
-                              setState(() {
-                                book.rating = rating;
-                              });
-                            },
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _removeBook(book.id, index),
                           ),
                         ],
                       ),
                     ),
-                    // Silme butonu
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        _removeBook(index);
-                      },
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          },
-        ),
       ),
     );
   }

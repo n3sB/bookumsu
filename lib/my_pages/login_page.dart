@@ -40,10 +40,8 @@ class _LoginPageState extends State<LoginPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  // Determine the available width for widgets
                   double maxWidth = constraints.maxWidth;
 
-                  // Use the minimum of 250 and the available width to avoid overflow
                   double buttonWidth = maxWidth < 250 ? maxWidth : 250;
 
                   return Column(

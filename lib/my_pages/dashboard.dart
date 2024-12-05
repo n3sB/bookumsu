@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:onur_alp_akin/my_pages/login_page.dart';
 import 'home_screen.dart';
 import 'books_screen.dart';
 import 'members_screen.dart';
@@ -26,7 +28,17 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _selectedIndex = index;
     });
-    Navigator.pop(context); // Close the drawer after tapping
+    Navigator.pop(context);
+  }
+
+  Future<void> _signOut() async {
+    await FirebaseAuth.instance.signOut();
+
+    // ignore: use_build_context_synchronously
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (Route<dynamic> route) => false,
+    );
   }
 
   @override
@@ -101,6 +113,11 @@ class _MyHomePageState extends State<MyHomePage> {
               trailing: const Icon(Icons.arrow_forward),
               title: const Text('About'),
               onTap: () => _onItemTapped(4),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: _signOut,
             ),
           ],
         ),
